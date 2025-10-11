@@ -1,4 +1,8 @@
-# feanor-math
+# feanor-math (bence's personal fork)
+
+> [!WARNING]  
+> This fork is used in [bencemali/fheanor](https://github.com/bencemali/fheanor) as a git submodule.  
+> Issue `git submodule update --init --recursive` in my fork of fheanor before build.
 
 This is a library for number theory, written completely in Rust. 
 The idea is to provide a more modern alternative to projects like NTL or FLINT, however due to the large scope of those projects, the current implementation is still far away from that.
@@ -285,8 +289,8 @@ impl RingBase for F2Base {
         *lhs = (*lhs + rhs) % 2;
     }
     
-    fn negate_inplace(&self, lhs: &mut Self::Element) {
-        *lhs = (2 - *lhs) % 2;
+    fn negate_inplace(&self, val: &mut Self::Element) {
+        *val = (2 - *val) % 2;
     }
 
     fn mul_assign(&self, lhs: &mut Self::Element, rhs: Self::Element) {
