@@ -211,7 +211,7 @@ pub fn lll<R, I, V1, V2, A>(
     assert!(ring.is_lt(delta, &ring.one()));
     assert!(ring.is_gt(delta, &ring.from_fraction(ring.base_ring().one(), ring.base_ring().int_hom().map(4))));
 
-    let mut tmp = OwnedMatrix::zero_in(n, matrix.row_count(), ring, &allocator);
+    let mut tmp = OwnedMatrix::zero_in(n, matrix.row_count(), &ring, &allocator);
     let mut compute_gram_matrix = |matrix: Submatrix<_, _>, gram_matrix: SubmatrixMut<_, _>| {
         let mut tmp_data = tmp.data_mut().submatrix(0..matrix.col_count(), 0..matrix.row_count());
         STANDARD_MATMUL.matmul(
@@ -228,7 +228,7 @@ pub fn lll<R, I, V1, V2, A>(
         );
     };
 
-    let mut gram_matrix = OwnedMatrix::zero_in(n, n, ring, &allocator);
+    let mut gram_matrix = OwnedMatrix::zero_in(n, n, &ring, &allocator);
     let mut gram_matrix = gram_matrix.data_mut();
     compute_gram_matrix(matrix.as_const(), gram_matrix.reborrow());
 
