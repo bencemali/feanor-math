@@ -6,6 +6,22 @@ use crate::primitive_int::StaticRing;
 use std::alloc::Allocator;
 use std::ops::Range;
 
+pub trait MatrixMultiplicationAlgorithm<R: ?Sized + RingBase> {
+    fn compute_multiplication<V1, V2, V3, A, const ADD_ASSIGN: bool, const T1: bool, const T2: bool, const T3: bool>(
+        lhs: TransposableSubmatrix<V1, El<R>, T1>,
+        rhs: TransposableSubmatrix<V2, El<R>, T2>,
+        dst: TransposableSubmatrixMut<V3, El<R>, T3>,
+        ring: R,
+        allocator: &A,
+    )
+    where
+        R: RingStore + Copy,
+        V1: AsPointerToSlice<El<R>>,
+        V2: AsPointerToSlice<El<R>>,
+        V3: AsPointerToSlice<El<R>>,
+        A: Allocator;
+}
+
 fn matrix_add_add_sub<R, V1, V2, V3, V4, const T1: bool, const T2: bool, const T3: bool, const T4: bool>(
     a: TransposableSubmatrix<V1, El<R>, T1>, 
     b: TransposableSubmatrix<V2, El<R>, T2>, 
