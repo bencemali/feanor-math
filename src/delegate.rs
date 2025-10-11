@@ -359,9 +359,9 @@ impl<R: DelegateRing + PartialEq + ?Sized> RingBase for R {
         self.postprocess_delegate_mut(lhs);
     }
 
-    default fn negate_inplace(&self, lhs: &mut Self::Element) {
-        self.get_delegate().negate_inplace(self.delegate_mut(lhs));
-        self.postprocess_delegate_mut(lhs);
+    default fn negate_inplace(&self, val: &mut Self::Element) {
+        self.get_delegate().negate_inplace(self.delegate_mut(val));
+        self.postprocess_delegate_mut(val);
     }
 
     default fn mul_assign(&self, lhs: &mut Self::Element, rhs: Self::Element) {

@@ -178,9 +178,9 @@ impl<R: RingStore, A: Allocator + Clone, C: ConvolutionAlgorithm<R::Type>> RingB
         }
     }
 
-    fn negate_inplace(&self, lhs: &mut Self::Element) {
-        for i in 0..lhs.data.len() {
-            self.base_ring.negate_inplace(&mut lhs.data[i]);
+    fn negate_inplace(&self, value: &mut Self::Element) {
+        for i in 0..value.data.len() {
+            self.base_ring.negate_inplace(&mut value.data[i]);
         }
     }
 

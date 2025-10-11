@@ -228,7 +228,7 @@ pub trait RingBase: PartialEq {
     fn add_assign_ref(&self, lhs: &mut Self::Element, rhs: &Self::Element) { self.add_assign(lhs, self.clone_el(rhs)) }
     fn add_assign(&self, lhs: &mut Self::Element, rhs: Self::Element);
     fn sub_assign_ref(&self, lhs: &mut Self::Element, rhs: &Self::Element) { self.sub_assign(lhs, self.clone_el(rhs)) }
-    fn negate_inplace(&self, lhs: &mut Self::Element);
+    fn negate_inplace(&self, val: &mut Self::Element);
     fn mul_assign(&self, lhs: &mut Self::Element, rhs: Self::Element);
     fn mul_assign_ref(&self, lhs: &mut Self::Element, rhs: &Self::Element) { self.mul_assign(lhs, self.clone_el(rhs)) }
     fn zero(&self) -> Self::Element { self.from_int(0) }
@@ -644,7 +644,7 @@ pub trait RingStore: Sized {
     delegate!{ RingBase, fn sub_assign_ref(&self, lhs: &mut El<Self>, rhs: &El<Self>) -> () }
     delegate!{ RingBase, fn sub_self_assign(&self, lhs: &mut El<Self>, rhs: El<Self>) -> () }
     delegate!{ RingBase, fn sub_self_assign_ref(&self, lhs: &mut El<Self>, rhs: &El<Self>) -> () }
-    delegate!{ RingBase, fn negate_inplace(&self, lhs: &mut El<Self>) -> () }
+    delegate!{ RingBase, fn negate_inplace(&self, val: &mut El<Self>) -> () }
     delegate!{ RingBase, fn mul_assign(&self, lhs: &mut El<Self>, rhs: El<Self>) -> () }
     delegate!{ RingBase, fn mul_assign_ref(&self, lhs: &mut El<Self>, rhs: &El<Self>) -> () }
     delegate!{ RingBase, fn zero(&self) -> El<Self> }

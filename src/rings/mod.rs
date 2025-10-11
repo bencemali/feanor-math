@@ -90,3 +90,8 @@ pub mod fraction;
 /// copies of a single base ring.
 /// 
 pub mod direct_power;
+
+///
+/// TODO(bence): comments
+/// 
+pub mod matrix;

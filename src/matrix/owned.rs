@@ -47,7 +47,16 @@ impl<T> OwnedMatrix<T> {
     pub fn zero<R: RingStore>(row_count: usize, col_count: usize, ring: R) -> Self
         where R::Type: RingBase<Element = T>
     {
-        Self::zero_in(row_count, col_count, ring, Global)
+        Self::zero_in(row_count, col_count, &ring, Global)
+    }
+
+    ///
+    /// Creates the `row_count x col_count` scalar matrix `cI` for a ring element c.
+    ///
+    pub fn scalar<R: RingStore>(row_count: usize, col_count: usize, scalar: El<R>, ring: R) -> Self
+        where R::Type: RingBase<Element = T>
+    {
+        Self::scalar_in(row_count, col_count, scalar, &ring, Global)
     }
 
     ///
@@ -157,7 +166,7 @@ impl<T, A: Allocator> OwnedMatrix<T, A> {
     /// Creates the `row_count x col_count` zero matrix over the given ring.
     /// 
     #[stability::unstable(feature = "enable")]
-    pub fn zero_in<R: RingStore>(row_count: usize, col_count: usize, ring: R, allocator: A) -> Self
+    pub fn zero_in<R: RingStore>(row_count: usize, col_count: usize, ring: &R, allocator: A) -> Self
         where R::Type: RingBase<Element = T>
     {
         let mut result = Vec::with_capacity_in(row_count * col_count, allocator);
@@ -170,10 +179,10 @@ impl<T, A: Allocator> OwnedMatrix<T, A> {
     }
 
     ///
-    /// Creates the `row_count x col_count` identity matrix over the given ring.
-    /// 
+    /// Creates the `row_count x col_count` scalar matrix `cI` for a ring element c.
+    ///
     #[stability::unstable(feature = "enable")]
-    pub fn identity_in<R: RingStore>(row_count: usize, col_count: usize, ring: R, allocator: A) -> Self
+    pub fn scalar_in<R: RingStore>(row_count: usize, col_count: usize, scalar: El<R>, ring: &R, allocator: A) -> Self
         where R::Type: RingBase<Element = T>
     {
         let mut result = Vec::with_capacity_in(row_count * col_count, allocator);
@@ -182,11 +191,21 @@ impl<T, A: Allocator> OwnedMatrix<T, A> {
                 if i != j {
                     result.push(ring.zero());
                 } else {
-                    result.push(ring.one());
+                    result.push(ring.clone_el(&scalar));
                 }
             }
         }
         return Self::new_with_shape(result, row_count, col_count);
+    }
+
+    ///
+    /// Creates the `row_count x col_count` identity matrix over the given ring.
+    ///
+    #[stability::unstable(feature = "enable")]
+    pub fn identity_in<R: RingStore>(row_count: usize, col_count: usize, ring: R, allocator: A) -> Self
+        where R::Type: RingBase<Element = T>
+    {
+        Self::scalar_in(row_count, col_count, ring.one(), &ring, allocator)
     }
 
     #[stability::unstable(feature = "enable")]
