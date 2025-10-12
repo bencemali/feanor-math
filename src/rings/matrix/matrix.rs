@@ -12,6 +12,8 @@ use std::fmt::Debug;
 /// 
 /// TODO(bence): add CanIsoFromTo between M_d(R[x]/(P(x))) and (M_d(R)[X])/P(X), where P(x) is possibly eq to 0
 /// 
+/// TODO(bence): impl RingExtension/CanHomFrom (base_ring -> MatrixRing) for MatrixRingBase
+/// 
 pub struct MatrixRingBase<R: RingStore, A: Allocator + Clone = Global, M: MatmulAlgorithm<R::Type> = StrassenAlgorithm<Global>> {
     base_ring: R,
     dimension: usize,
@@ -75,6 +77,8 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> MatrixRing
 /// An element of [`MatrixRing`].
 /// 
 pub struct MatrixRingEl<R: RingStore, A: Allocator + Clone = Global> {
+    // TODO(bence): is OwnedMatrix the most efficient solution?
+    // maybe inefficient to always convert to TransposableSubmatrix(Mut)
     data: OwnedMatrix<El<R>, A>
 }
 
@@ -89,7 +93,9 @@ impl<R, A> Debug for MatrixRingEl<R, A>
     }
 }
 
-impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase for MatrixRingBase<R, A, M> {
+impl<R, A, M> RingBase for MatrixRingBase<R, A, M> 
+    where R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>
+{
 
     type Element = MatrixRingEl<R, A>;
 
@@ -139,8 +145,22 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     }
 
     fn eq_el(&self, lhs: &Self::Element, rhs: &Self::Element) -> bool {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::eq_el")
+        if lhs.data.col_count() != lhs.data.row_count()
+            || lhs.data.col_count() != rhs.data.col_count()
+            || rhs.data.col_count() != rhs.data.row_count()
+        {
+            return false;
+        }
+        let dim = lhs.data.col_count();
+        for i in 0..dim {
+            for j in 0..dim {
+                if !self.base_ring.eq_el(lhs.data.at(i, j), rhs.data.at(i, j))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     fn is_commutative(&self) -> bool {
@@ -163,18 +183,24 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     }
 
     fn square(&self, value: &mut Self::Element) {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::square")
+        *value = self.mul_ref(&value, &value);
     }
 
     fn mul_ref(&self, lhs: &Self::Element, rhs: &Self::Element) -> Self::Element {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::mul_ref")
-    }
-
-    fn mul_assign_int(&self, lhs: &mut Self::Element, rhs: i32) {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::mul_assign_int")
+        let vec = Vec::with_capacity_in(
+            self.dimension * self.dimension,
+            self.allocator.clone()
+        );
+        let mut owned = OwnedMatrix::new(vec, self.dimension);
+        self.matmul_algorithm.matmul(
+            TransposableSubmatrix::from(lhs.data.data()),
+            TransposableSubmatrix::from(rhs.data.data()),
+            TransposableSubmatrixMut::from(owned.data_mut()),
+            &self.base_ring
+        );
+        Self::Element {
+            data: owned
+        }
     }
 
     fn characteristic<I: IntegerRingStore + Copy>(&self, ZZ: I) -> Option<El<I>>
@@ -186,8 +212,7 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     fn prod<I>(&self, els: I) -> Self::Element 
         where I: IntoIterator<Item = Self::Element>
     {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::prod")
+        els.into_iter().fold(self.one(), |a, b| self.mul(a, b))
     }
 
     fn is_approximate(&self) -> bool {
@@ -202,7 +227,5 @@ impl<R, A, M> PartialEq for MatrixRingBase<R, A, M>
         self.base_ring.get_ring() == other.base_ring.get_ring()
     }
 }
-
-// TODO(bence): impl RingExtension for MatrixRingBase
 
 // TODO(bence): tests
