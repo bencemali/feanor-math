@@ -1,6 +1,6 @@
 use std::alloc::{Allocator, Global};
 
-use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, integer::{IntegerRing, IntegerRingStore}, matrix::{matrix_add_assign, matrix_negate_inplace, matrix_sub_self_assign, AsFirstElement, AsPointerToSlice, OwnedMatrix, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{EnvBindingStrength, RingBase, RingRef, RingStore, RingValue}};
+use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, integer::{IntegerRing, IntegerRingStore}, matrix::{format_matrix, matrix_add_assign, matrix_negate_inplace, matrix_sub_self_assign, AsFirstElement, OwnedMatrix, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{EnvBindingStrength, RingBase, RingStore, RingValue}};
 use crate::ring::El;
 
 use std::fmt::Debug;
@@ -68,6 +68,14 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> MatrixRing
 
     pub fn into_base_ring(self) -> R {
         self.base_ring
+    }
+
+    pub fn base_ring(&self) -> &R {
+        &self.base_ring
+    }
+
+    pub fn dimension(&self) -> usize {
+        self.dimension
     }
 }
 
@@ -138,9 +146,22 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
         }
     }
 
+    fn one(&self) -> Self::Element {
+        Self::Element {
+            data: OwnedMatrix::identity_in(
+                self.dimension, self.dimension, &self.base_ring, self.allocator.clone())
+        }
+    }
+
     fn eq_el(&self, lhs: &Self::Element, rhs: &Self::Element) -> bool {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::eq_el")
+        for i in 0..self.dimension {
+            for j in 0..self.dimension {
+                if !self.base_ring.eq_el(&lhs.data.at(i, j), &rhs.data.at(i, j)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     fn is_commutative(&self) -> bool {
@@ -153,28 +174,51 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     }
 
     fn dbg_within<'a>(&self, value: &Self::Element, out: &mut std::fmt::Formatter<'a>, env: EnvBindingStrength) -> std::fmt::Result {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::dbg_within")
+        if env >= EnvBindingStrength::Product {
+            write!(out, "(")?;
+        }
+        
+        let formatted = format_matrix(
+            self.dimension, 
+            self.dimension, 
+            |i, j| &value.data.at(i, j), 
+            &self.base_ring
+        );
+        write!(out, "{}", formatted)?;
+        
+        if env >= EnvBindingStrength::Product {
+            write!(out, ")")?;
+        }
+        
+        Ok(())
     }
 
     fn dbg<'a>(&self, value: &Self::Element, out: &mut std::fmt::Formatter<'a>) -> std::fmt::Result {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::dbg")
+        self.dbg_within(value, out, EnvBindingStrength::Weakest)
     }
 
     fn square(&self, value: &mut Self::Element) {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::square")
+        *value = self.mul_ref(value, value);
     }
 
     fn mul_ref(&self, lhs: &Self::Element, rhs: &Self::Element) -> Self::Element {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::mul_ref")
+        let mut result = self.zero();
+        self.matmul_algorithm.matmul(
+            TransposableSubmatrix::from(lhs.data.data()),
+            TransposableSubmatrix::from(rhs.data.data()),
+            TransposableSubmatrixMut::from(result.data.data_mut()),
+            &self.base_ring
+        );
+        result
     }
 
     fn mul_assign_int(&self, lhs: &mut Self::Element, rhs: i32) {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::mul_assign_int")
+        let scalar = self.base_ring.get_ring().from_int(rhs);
+        for i in 0..self.dimension {
+            for j in 0..self.dimension {
+                self.base_ring.mul_assign_ref(&mut lhs.data.at_mut(i, j), &scalar);
+            }
+        }
     }
 
     fn characteristic<I: IntegerRingStore + Copy>(&self, ZZ: I) -> Option<El<I>>
@@ -186,8 +230,16 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     fn prod<I>(&self, els: I) -> Self::Element 
         where I: IntoIterator<Item = Self::Element>
     {
-        // TODO(bence)
-        unimplemented!("MatrixRingBase::prod")
+        let mut iter = els.into_iter();
+        if let Some(first) = iter.next() {
+            let mut result = first;
+            for el in iter {
+                result = self.mul_ref(&result, &el);
+            }
+            result
+        } else {
+            self.one()
+        }
     }
 
     fn is_approximate(&self) -> bool {
