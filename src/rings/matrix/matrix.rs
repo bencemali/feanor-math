@@ -1,7 +1,6 @@
 use std::alloc::{Allocator, Global};
 
-use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, integer::{IntegerRing, IntegerRingStore}, matrix::{format_matrix, matrix_add_assign, matrix_negate_inplace, matrix_sub_self_assign, AsFirstElement, OwnedMatrix, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{EnvBindingStrength, RingBase, RingStore, RingValue}};
-use crate::ring::El;
+use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, integer::{IntegerRing, IntegerRingStore}, matrix::{format_matrix, matrix_add_assign, matrix_negate_inplace, matrix_sub_self_assign, AsFirstElement, OwnedMatrix, Submatrix, SubmatrixMut, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{self, El, EnvBindingStrength, RingBase, RingStore, RingValue}};
 
 use std::fmt::Debug;
 
@@ -42,16 +41,16 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> Debug for 
     }
 }
 
-pub type MatrixRing<R, A = Global, M = StrassenAlgorithm> = RingValue<MatrixRingBase<R, A, M>>;
+pub type MatrixRingType<R, A = Global, M = StrassenAlgorithm> = RingValue<MatrixRingBase<R, A, M>>;
 
-impl<R: RingStore> MatrixRing<R> {
+impl<R: RingStore> MatrixRingType<R> {
 
     pub fn new(base_ring: R, dimension: usize) -> Self {
         Self::new_with_matmul(base_ring, dimension, Global, STANDARD_MATMUL)
     }
 }
 
-impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> MatrixRing<R, A, M> {
+impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> MatrixRingType<R, A, M> {
 
     pub fn new_with_matmul(base_ring: R, dimension: usize, allocator: A, matmul_algorithm: M) -> Self {
         debug_assert!(base_ring.is_commutative());
@@ -252,6 +251,52 @@ impl<R, A, M> PartialEq for MatrixRingBase<R, A, M>
 {
     fn eq(&self, other: &Self) -> bool {
         self.base_ring.get_ring() == other.base_ring.get_ring()
+    }
+}
+
+impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> crate::ring::RingExtension for MatrixRingBase<R, A, M> {
+    type BaseRing = R;
+    
+    fn base_ring(&self) -> &Self::BaseRing {
+        &self.base_ring
+    }
+    
+    fn from(&self, x: El<Self::BaseRing>) -> Self::Element {
+        Self::Element {
+            data: OwnedMatrix::scalar_in(
+                self.dimension, self.dimension, x, &self.base_ring, self.allocator.clone())
+        }
+    }
+}
+
+impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> crate::rings::matrix::MatrixRing for MatrixRingBase<R, A, M> {
+
+    fn to_elements<'a>(&'a self, el: &'a <MatrixRingBase<R, A, M> as ring::RingBase>::Element) -> Submatrix<'a, AsFirstElement<El<R>>, El<R>>
+    {
+        return el.data.data();
+    }
+
+    fn to_elements_mut<'a>(&'a self, el: &'a mut <MatrixRingBase<R, A, M> as ring::RingBase>::Element) -> SubmatrixMut<'a, AsFirstElement<El<R>>, El<R>>
+    {
+        return el.data.data_mut();
+    }
+
+    fn from_elements(&self, elements: Vec<El<Self::BaseRing>>) -> Self::Element {
+        assert_eq!(elements.len(), self.dimension * self.dimension, 
+                  "Vector must have exactly dimension^2 elements");
+
+        let mut data = Vec::with_capacity_in(self.dimension * self.dimension, self.allocator.clone());
+        for element in elements {
+            data.push(element);
+        }
+
+        Self::Element {
+            data: OwnedMatrix::new_with_shape(data, self.dimension, self.dimension)
+        }
+    }
+
+    fn dimension(&self) -> usize {
+        self.dimension
     }
 }
 
