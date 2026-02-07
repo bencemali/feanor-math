@@ -1,6 +1,6 @@
 use std::alloc::{Allocator, Global};
 
-use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, homomorphism::{CanHomFrom, CanIsoFromTo}, integer::{IntegerRing, IntegerRingStore}, matrix::{format_matrix, matrix_add_assign, matrix_negate_inplace, matrix_sub_self_assign, AsFirstElement, OwnedMatrix, Submatrix, SubmatrixMut, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{self, El, EnvBindingStrength, RingBase, RingStore, RingValue}};
+use crate::{algorithms::matmul::{MatmulAlgorithm, StrassenAlgorithm, STANDARD_MATMUL}, homomorphism::{CanHomFrom, CanIsoFromTo}, integer::{IntegerRing, IntegerRingStore}, matrix::{format_matrix, matrix_add_assign, matrix_negate_inplace, AsFirstElement, OwnedMatrix, Submatrix, SubmatrixMut, TransposableSubmatrix, TransposableSubmatrixMut}, ring::{self, El, EnvBindingStrength, RingBase, RingStore, RingValue}};
 
 use std::fmt::Debug;
 
@@ -115,8 +115,11 @@ impl<R: RingStore, A: Allocator + Clone, M: MatmulAlgorithm<R::Type>> RingBase f
     }
 
     fn sub_assign_ref(&self, lhs: &mut Self::Element, rhs: &Self::Element) {
-        matrix_sub_self_assign(TransposableSubmatrix::from(rhs.data.data()),
-            TransposableSubmatrixMut::from(lhs.data.data_mut()), &self.base_ring);
+        for i in 0..self.dimension {
+            for j in 0..self.dimension {
+                self.base_ring.sub_assign_ref(lhs.data.at_mut(i, j), rhs.data.at(i, j));
+            }
+        }
     }
 
     fn negate_inplace(&self, value: &mut Self::Element) {
@@ -542,4 +545,74 @@ fn test_matrix_mul() {
     ]);
     let actual = ring.mul(a, b);
     assert!(ring.eq_el(&expected, &actual));
+}
+
+#[test]
+fn test_poly_ring_over_matrix_ring() {
+    use crate::rings::poly::dense_poly::DensePolyRing;
+    use crate::rings::poly::PolyRingStore;
+
+    let ZZ = StaticRing::<i64>::RING;
+    let m2 = DenseMatrixRing::new(ZZ, 2);
+
+    // M_2(Z)[X]
+    let poly_ring = DensePolyRing::new(m2.clone(), "X");
+    let x = poly_ring.indeterminate();
+
+    // create matrix coefficients: A = [[1, 2], [3, 4]], B = [[0, 1], [1, 0]]
+    let mat_a = m2.get_ring().from_elements(vec![1, 2, 3, 4]);
+    let mat_b = m2.get_ring().from_elements(vec![0, 1, 1, 0]);
+
+    // f(X) = A + B*X
+    let f = poly_ring.add(
+        poly_ring.inclusion().map(m2.clone_el(&mat_a)),
+        poly_ring.mul(poly_ring.inclusion().map(m2.clone_el(&mat_b)), poly_ring.clone_el(&x)),
+    );
+    assert_eq!(Some(1), poly_ring.degree(&f));
+    assert!(m2.eq_el(&mat_a, poly_ring.coefficient_at(&f, 0)));
+    assert!(m2.eq_el(&mat_b, poly_ring.coefficient_at(&f, 1)));
+
+    // g(X) = I + X  (identity matrix + X)
+    let g = poly_ring.add(
+        poly_ring.inclusion().map(m2.one()),
+        poly_ring.clone_el(&x),
+    );
+    assert_eq!(Some(1), poly_ring.degree(&g));
+    assert!(m2.eq_el(&m2.one(), poly_ring.coefficient_at(&g, 0)));
+
+    // f * g = (A + B*X) * (I + X)
+    // convolution gives c_i = sum_j f[i-j] * g[j]
+    // c_0 = A*I = A
+    // c_1 = B*I + A*I = A + B
+    // c_2 = B*I = B
+    let fg = poly_ring.mul_ref(&f, &g);
+    assert_eq!(Some(2), poly_ring.degree(&fg));
+    let expected_fg_c1 = m2.add(m2.clone_el(&mat_a), m2.clone_el(&mat_b));
+    assert!(m2.eq_el(&mat_a, poly_ring.coefficient_at(&fg, 0)));
+    assert!(m2.eq_el(&expected_fg_c1, poly_ring.coefficient_at(&fg, 1)));
+    assert!(m2.eq_el(&mat_b, poly_ring.coefficient_at(&fg, 2)));
+
+    // f^2 = (A + B*X)^2
+    // c_0 = A*A, c_1 = B*A + A*B, c_2 = B*B
+    let f_sq = poly_ring.mul_ref(&f, &f);
+    assert_eq!(Some(2), poly_ring.degree(&f_sq));
+    let expected_sq_c0 = m2.mul_ref(&mat_a, &mat_a);
+    let expected_sq_c1 = m2.add(m2.mul_ref(&mat_b, &mat_a), m2.mul_ref(&mat_a, &mat_b));
+    let expected_sq_c2 = m2.mul_ref(&mat_b, &mat_b);
+    assert!(m2.eq_el(&expected_sq_c0, poly_ring.coefficient_at(&f_sq, 0)));
+    assert!(m2.eq_el(&expected_sq_c1, poly_ring.coefficient_at(&f_sq, 1)));
+    assert!(m2.eq_el(&expected_sq_c2, poly_ring.coefficient_at(&f_sq, 2)));
+
+    // test X^3
+    let x_cubed = poly_ring.pow(poly_ring.clone_el(&x), 3);
+    assert_eq!(Some(3), poly_ring.degree(&x_cubed));
+    assert!(m2.is_zero(poly_ring.coefficient_at(&x_cubed, 0)));
+    assert!(m2.is_zero(poly_ring.coefficient_at(&x_cubed, 1)));
+    assert!(m2.is_zero(poly_ring.coefficient_at(&x_cubed, 2)));
+    assert!(m2.is_one(poly_ring.coefficient_at(&x_cubed, 3)));
+
+    // test zero polynomial
+    let zero = poly_ring.zero();
+    assert_eq!(None, poly_ring.degree(&zero));
+    assert!(poly_ring.is_zero(&poly_ring.mul(poly_ring.clone_el(&zero), poly_ring.clone_el(&f))));
 }
