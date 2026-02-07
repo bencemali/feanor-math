@@ -162,7 +162,7 @@ pub fn kernel_basis_using_pre_smith<R, V, A>(ring: R, mut A: SubmatrixMut<V, El<
     
     let annihilators = (0..A.col_count()).map(|i| if i < A.row_count() { ring.annihilator(A.at(i, i)) } else { ring.one() }).collect::<Vec<_>>();
     let annihilators = annihilators.iter().enumerate().filter(|(_, a)| !ring.is_zero(a)).enumerate();
-    let mut B = OwnedMatrix::zero_in(A.col_count(), annihilators.clone().count(), ring, allocator);
+    let mut B = OwnedMatrix::zero_in(A.col_count(), annihilators.clone().count(), &ring, allocator);
     for (i, (j, a)) in annihilators {
         *B.at_mut(i, j) = ring.clone_el(a);
     }
